@@ -1,0 +1,29 @@
+{
+    "dataOffers": [
+        { "id": 1, "name": "250MB (24hrs)", "price": 20 },
+        { "id": 2, "name": "1GB (1hr)", "price": 19 },
+        { "id": 3, "name": "1.25GB (till midnight)", "price": 55 },
+        { "id": 4, "name": "1.5GB (3hrs)", "price": 50 },
+        { "id": 5, "name": "350MB (1 week)", "price": 49 },
+        { "id": 6, "name": "2.5GB (1 week)", "price": 300 },
+        { "id": 7, "name": "1GB (24hrs)", "price": 99 },
+        { "id": 8, "name": "2.5GB (30 days)", "price": 500 },
+        { "id": 9, "name": "1.5GB (1 month)", "price": 250 },
+        { "id": 10, "name": "6GB (1 month)", "price": 700 },
+        { "id": 11, "name": "8GB + 400 Mins (1 month)", "price": 999 },
+        { "id": 12, "name": "10GB (1 month)", "price": 1001 }
+    ],
+    "smsOffers": [
+        { "id": 1, "name": "20 Daily SMS", "price": 5 },
+        { "id": 2, "name": "100 Daily SMS", "price": 10 },
+        { "id": 3, "name": "100 SMS (7 days)", "price": 21 },
+        { "id": 4, "name": "1000 SMS (1 week)", "price": 30 },
+        { "id": 5, "name": "1500 SMS (1 month)", "price": 101 },
+        { "id": 6, "name": "3500 SMS (1 month)", "price": 201 }
+    ],
+    "talktimeOffers": [
+        { "id": 1, "name": "50 Minutes (till midnight)", "price": 51 },
+        { "id": 2, "name": "300 Minutes (30 days)", "price": 499 },
+        { "id": 3, "name": "800 Minutes (30 days)", "price": 1000 }
+    ]
+}
