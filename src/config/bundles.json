@@ -1,18 +1,24 @@
 {
-    "dataOffers": [
-        { "id": 1, "name": "250MB (24hrs)", "price": 20 },
-        { "id": 2, "name": "1GB (1hr)", "price": 19 },
-        { "id": 3, "name": "1.25GB (till midnight)", "price": 55 },
-        { "id": 4, "name": "1.5GB (3hrs)", "price": 50 },
-        { "id": 5, "name": "350MB (1 week)", "price": 49 },
-        { "id": 6, "name": "2.5GB (1 week)", "price": 300 },
-        { "id": 7, "name": "1GB (24hrs)", "price": 99 },
-        { "id": 8, "name": "2.5GB (30 days)", "price": 500 },
-        { "id": 9, "name": "1.5GB (1 month)", "price": 250 },
-        { "id": 10, "name": "6GB (1 month)", "price": 700 },
-        { "id": 11, "name": "8GB + 400 Mins (1 month)", "price": 999 },
-        { "id": 12, "name": "10GB (1 month)", "price": 1001 }
-    ],
+    "dataOffers": {
+        "daily": [
+            { "id": 1, "name": "250MB (24hrs)", "price": 20 },
+            { "id": 2, "name": "1GB (1hr)", "price": 19 },
+            { "id": 3, "name": "1.25GB (till midnight)", "price": 55 },
+            { "id": 4, "name": "1.5GB (3hrs)", "price": 50 },
+            { "id": 5, "name": "1GB (24hrs)", "price": 99 }
+        ],
+        "weekly": [
+            { "id": 1, "name": "350MB (1 week)", "price": 49 },
+            { "id": 2, "name": "2.5GB (1 week)", "price": 300 }
+        ],
+        "monthly": [
+            { "id": 1, "name": "2.5GB (30 days)", "price": 500 },
+            { "id": 2, "name": "1.5GB (1 month)", "price": 250 },
+            { "id": 3, "name": "6GB (1 month)", "price": 700 },
+            { "id": 4, "name": "8GB + 400 Mins (1 month)", "price": 999 },
+            { "id": 5, "name": "10GB (1 month)", "price": 1001 }
+        ]
+    },
     "smsOffers": [
         { "id": 1, "name": "20 Daily SMS", "price": 5 },
         { "id": 2, "name": "100 Daily SMS", "price": 10 },
