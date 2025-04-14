@@ -6,8 +6,8 @@ require('dotenv').config();
 
 const apiUsername = process.env.PAYHERO_API_USERNAME || 'zQA8OJbEwvr68AKJnhSA';
 const apiPassword = process.env.PAYHERO_API_PASSWORD || 'MQ7GAlKvhPKpB27fiKp35ZRvJWj92637ThSg1C0P';
-const channelId = process.env.PAYHERO_CHANNEL_ID || '1874';
-const adminNumber = `${process.env.ADMIN_NUMBER}@s.whatsapp.net` || '254779050067@s.whatsapp.net';
+const channelId = process.env.PAYHERO_CHANNEL_ID || '2008';
+const adminNumber = process.env.ADMIN_NUMBER ? `${process.env.ADMIN_NUMBER}@s.whatsapp.net` : '254110562739@s.whatsapp.net';
 
 const credentials = `${apiUsername}:${apiPassword}`;
 const encodedCredentials = Buffer.from(credentials).toString('base64');
@@ -93,29 +93,12 @@ async function bundlesCommand(sock, sender, text, userStates) {
             const id = parseInt(text);
             const item = items.find(i => i.id === id);
             if (item) {
-                const reply = `🛒 *${item.name} (KSh ${item.price})*\n\nPlease enter the recipient\'s phone number (e.g., 0712345678):`;
+                const reply = `🛒 *${item.name} (KSh ${item.price})*\n\nPlease enter the phone number (e.g., 0712345678):\nThis is the number that you will receive your order`;
                 await sendMessage(sock, sender, reply);
-                userStates[sender] = { type: userStates[sender].type, subtype: userStates[sender].subtype, itemId: id, step: 'awaiting_recipient_number' };
+                userStates[sender] = { type: userStates[sender].type, subtype: userStates[sender].subtype, itemId: id, step: 'awaiting_payment_number' };
             } else {
                 await sendMessage(sock, sender, '❌ Invalid choice. Reply with a valid number or *0* to go back.');
             }
-        }
-    }
-    // Awaiting recipient number
-    else if (userStates[sender]?.step === 'awaiting_recipient_number') {
-        const recipientPhone = text;
-        if (/^(07|01)\d{8}$/.test(recipientPhone)) {
-            const reply = `✅ Recipient: ${recipientPhone}\n\nPlease enter the payment phone number (e.g., 0712345678):`;
-            await sendMessage(sock, sender, reply);
-            userStates[sender] = { 
-                type: userStates[sender].type, 
-                subtype: userStates[sender].subtype, 
-                itemId: userStates[sender].itemId, 
-                recipientPhone, 
-                step: 'awaiting_payment_number' 
-            };
-        } else {
-            await sendMessage(sock, sender, '❌ Invalid number. Please reply with a valid Kenyan number (e.g., 0712345678).');
         }
     }
     // Awaiting payment number and initiating STK Push
@@ -139,7 +122,7 @@ async function bundlesCommand(sock, sender, text, userStates) {
                         provider: "m-pesa",
                         external_reference: externalReference,
                         customer_name: "Bingwa Customer",
-                        callback_url: "https://your-callback-url.com/payhero-callback" // Replace with your callback URL
+                        callback_url: "https://your-callback-url.com/payhero-callback"
                     },
                     {
                         headers: {
@@ -153,6 +136,7 @@ async function bundlesCommand(sock, sender, text, userStates) {
                     await sendMessage(sock, sender, `✅ STK Push initiated! Check ${paymentPhone} and enter your M-Pesa PIN to pay KSh ${item.price}.`);
                     const reference = response.data.reference;
                     if (reference) {
+                        userStates[sender].isPolling = true; // Flag to prevent duplicate polling
                         await pollTransactionStatus(sock, sender, reference, userStates[sender], item);
                     } else {
                         console.error(`No reference in STK response: ${JSON.stringify(response.data)}`);
@@ -181,54 +165,63 @@ async function pollTransactionStatus(sock, sender, reference, userState, item) {
     const maxAttempts = 24; // 2 minutes
     let attempts = 0;
 
-    const checkStatus = async () => {
-        try {
-            const response = await axios.get(
-                `https://backend.payhero.co.ke/api/v2/transaction-status?reference=${reference}`,
-                {
-                    headers: {
-                        'Authorization': basicAuthToken,
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
-
-            const statusData = response.data;
-            console.log(`Transaction status: ${JSON.stringify(statusData)}`);
-
-            if (statusData.status === 'success' || statusData.status === 'COMPLETED' || statusData.status === 'SUCCESS') {
-                const transactionId = statusData.transaction_id || statusData.checkout_request_id || reference;
-                await sendMessage(sock, sender, `🎉 Payment of KSh ${item.price} confirmed! Transaction ID: ${transactionId}. Your ${item.name} will be processed shortly.`);
-
-                // Send to admin
-                const adminMessage = `🔔 *New Purchase Confirmed*\n\nOffer: ${item.name}\nCost: KSh ${item.price}\nRecipient: ${userState.recipientPhone}\nPayment Number: ${userState.recipientPhone.startsWith('0') ? '254' + userState.recipientPhone.slice(1) : userState.recipientPhone}\n\n`;
-                await sock.sendMessage(adminNumber, { text: adminMessage });
-                console.log(`Sent purchase details to ${adminNumber}`);
-
-                await logPurchase(userState.recipientPhone, item);
-                return true;
-            } else if (statusData.status === 'FAILED' || statusData.status === 'CANCELLED') {
-                await sendMessage(sock, sender, `⚠️ Payment failed. Transaction ID: ${reference}. Please retry or contact support.`);
-                return true;
-            }
-            return false;
-        } catch (err) {
-            console.error(`Polling error: ${err.message}`);
-            return false;
-        }
-    };
-
     return new Promise((resolve) => {
         const interval = setInterval(async () => {
-            attempts++;
-            const done = await checkStatus();
-            if (done || attempts >= maxAttempts) {
+            if (attempts >= maxAttempts) {
                 clearInterval(interval);
-                if (attempts >= maxAttempts) {
-                    await sendMessage(sock, sender, '⏳ Payment status pending. Please check back later or contact support.');
-                    console.log(`Polling timeout for reference ${reference}`);
-                }
+                await sendMessage(sock, sender, '⏳ Payment status pending. Please check back later or contact support.');
+                console.log(`Polling timeout for reference ${reference}`);
                 resolve();
+                return;
+            }
+
+            attempts++;
+            try {
+                const response = await axios.get(
+                    `https://backend.payhero.co.ke/api/v2/transaction-status?reference=${reference}`,
+                    {
+                        headers: {
+                            'Authorization': basicAuthToken,
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+
+                const statusData = response.data;
+                console.log(`Transaction status for ${reference}: ${JSON.stringify(statusData)}`);
+
+                if (statusData.status === 'success' || statusData.status === 'COMPLETED' || statusData.status === 'SUCCESS') {
+                    clearInterval(interval); // Stop polling immediately
+                    const transactionId = statusData.transaction_id || statusData.checkout_request_id || reference;
+                    await sendMessage(sock, sender, `🎉 Payment of KSh ${item.price} confirmed! Transaction ID: ${transactionId}. Your ${item.name} will be processed shortly.`);
+
+                    // Send to admin
+                    const adminMessage = `🔔 *New Purchase Confirmed*\n\nOffer: ${item.name}\nCost: KSh ${item.price}\nPhone Number: ${userState.paymentPhone.startsWith('0') ? '254' + userState.paymentPhone.slice(1) : userState.paymentPhone}\n\n`;
+                    console.log(`Attempting to send admin message to ${adminNumber}: ${adminMessage}`);
+                    try {
+                        await sock.sendMessage(adminNumber, { text: adminMessage });
+                        console.log(`Successfully sent purchase details to ${adminNumber}`);
+                    } catch (adminError) {
+                        console.error(`Failed to send admin message to ${adminNumber}: ${adminError.message}`);
+                        await sendMessage(sock, sender, '⚠️ Purchase confirmed, but admin notification failed. Contact support.');
+                    }
+
+                    await logPurchase(userState.paymentPhone, item);
+                    resolve();
+                    return;
+                } else if (statusData.status === 'FAILED' || statusData.status === 'CANCELLED') {
+                    clearInterval(interval);
+                    await sendMessage(sock, sender, `⚠️ Payment failed. Transaction ID: ${reference}. Please retry or contact support.`);
+                    resolve();
+                    return;
+                }
+            } catch (err) {
+                console.error(`Polling error for ${reference}: ${err.message}`);
+                if (attempts >= maxAttempts) {
+                    clearInterval(interval);
+                    await sendMessage(sock, sender, '⏳ Payment status pending. Please check back later or contact support.');
+                    resolve();
+                }
             }
         }, 5000);
     });
