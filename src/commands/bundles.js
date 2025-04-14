@@ -3,7 +3,7 @@ const fs = require('fs').promises;
 const axios = require('axios');
 const offers = require('../config/bundles.json');
 require('dotenv').config();
-
+//api data
 const apiUsername = process.env.PAYHERO_API_USERNAME || 'zQA8OJbEwvr68AKJnhSA';
 const apiPassword = process.env.PAYHERO_API_PASSWORD || 'MQ7GAlKvhPKpB27fiKp35ZRvJWj92637ThSg1C0P';
 const channelId = process.env.PAYHERO_CHANNEL_ID || '2008';
