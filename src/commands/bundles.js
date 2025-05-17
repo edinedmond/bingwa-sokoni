@@ -1,7 +1,7 @@
 const { sendMessage } = require('../utils/message');
 const fs = require('fs').promises;
 const axios = require('axios');
-const path = require('path'); // Added to fix ReferenceError
+const path = require('path');
 const offers = require('../config/bundles.json');
 const { updateUserPoints, getUserPoints, canMakePurchase, recordPurchase } = require('../utils/firebase');
 require('dotenv').config();
@@ -99,8 +99,7 @@ async function bundlesCommand(sock, sender, text, userStates) {
                 // Fetch user points
                 const userPoints = await getUserPoints(sender);
                 if (userPoints >= 20) {
-                    // Offer points spending option
-                    const maxPointsUsable = Math.min(userPoints, item.price); // Can't use more points than item price
+                    const maxPointsUsable = Math.min(userPoints, item.price);
                     const reply = `🛒 *${item.name} (KSh ${item.price})*\n\n🌟 You have ${userPoints} points!\nYou can use points to reduce the price (1 point = KSh 1).\nMax usable: ${maxPointsUsable} points.\n\nReply:\n*1* - Use ${maxPointsUsable} points (Pay KSh ${item.price - maxPointsUsable})\n*2* - Pay full price (KSh ${item.price})\n*0* - Go back`;
                     await sendMessage(sock, sender, reply);
                     userStates[sender] = { 
@@ -111,7 +110,6 @@ async function bundlesCommand(sock, sender, text, userStates) {
                         pointsUsable: maxPointsUsable 
                     };
                 } else {
-                    // Not enough points, proceed to phone number
                     const reply = `🛒 *${item.name} (KSh ${item.price})*\n\n🌟 You have ${userPoints} points (need 20+ to use).\nPlease enter the phone number (e.g., 0712345678):\nThis is the number that you will receive your order`;
                     await sendMessage(sock, sender, reply);
                     userStates[sender] = { 
@@ -130,7 +128,6 @@ async function bundlesCommand(sock, sender, text, userStates) {
     // Points usage selection
     else if (userStates[sender]?.step === 'selecting_points_usage') {
         if (text === '0') {
-            // Go back to item selection
             const items = userStates[sender].subtype ? offers[userStates[sender].type][userStates[sender].subtype] : offers[userStates[sender].type];
             let reply = userStates[sender].type === 'dataOffers' ? 
                         `📱 *${userStates[sender].subtype.charAt(0).toUpperCase() + userStates[sender].subtype.slice(1)} Data Offers* 📱\n\n` :
@@ -143,7 +140,6 @@ async function bundlesCommand(sock, sender, text, userStates) {
             await sendMessage(sock, sender, reply);
             userStates[sender] = { type: userStates[sender].type, subtype: userStates[sender].subtype, step: 'selecting' };
         } else if (text === '1') {
-            // Use points
             const reply = `🛒 Using ${userStates[sender].pointsUsable} points to reduce price to KSh ${offers[userStates[sender].type][userStates[sender].subtype]?.find(i => i.id === userStates[sender].itemId)?.price - userStates[sender].pointsUsable || offers[userStates[sender].type].find(i => i.id === userStates[sender].itemId).price - userStates[sender].pointsUsable}.\nPlease enter the phone number (e.g., 0712345678):\nThis is the number that you will receive your order`;
             await sendMessage(sock, sender, reply);
             userStates[sender] = { 
@@ -154,7 +150,6 @@ async function bundlesCommand(sock, sender, text, userStates) {
                 pointsUsed: userStates[sender].pointsUsable 
             };
         } else if (text === '2') {
-            // Pay full price
             const reply = `🛒 Paying full price for ${offers[userStates[sender].type][userStates[sender].subtype]?.find(i => i.id === userStates[sender].itemId)?.name || offers[userStates[sender].type].find(i => i.id === userStates[sender].itemId).name} (KSh ${offers[userStates[sender].type][userStates[sender].subtype]?.find(i => i.id === userStates[sender].itemId)?.price || offers[userStates[sender].type].find(i => i.id === userStates[sender].itemId).price}).\nPlease enter the phone number (e.g., 0712345678):\nThis is the number that you will receive your order`;
             await sendMessage(sock, sender, reply);
             userStates[sender] = { 
@@ -182,10 +177,10 @@ async function bundlesCommand(sock, sender, text, userStates) {
             // Normalize phone number to 254 format
             const normalizedPhone = paymentPhone.startsWith('0') ? '254' + paymentPhone.slice(1) : paymentPhone;
 
-            // Check daily purchase limit
-            const canPurchase = await canMakePurchase(normalizedPhone);
+            // Check daily purchase limit for specific service type
+            const canPurchase = await canMakePurchase(normalizedPhone, userStates[sender].type);
             if (!canPurchase) {
-                await sendMessage(sock, sender, `❌ Sorry, this phone number (${paymentPhone}) has already made a purchase today. Try again tomorrow.`);
+                await sendMessage(sock, sender, `❌ Sorry, this phone number (${paymentPhone}) has already purchased a ${userStates[sender].type.replace('Offers', '').toLowerCase()} bundle today. Try again tomorrow or select a different service.`);
                 delete userStates[sender];
                 return;
             }
@@ -196,7 +191,7 @@ async function bundlesCommand(sock, sender, text, userStates) {
                 // Deduct points if used
                 if (pointsUsed > 0) {
                     console.log(`Deducting ${pointsUsed} points for ${sender}`);
-                    await updateUserPoints(sender, -pointsUsed); // Subtract points
+                    await updateUserPoints(sender, -pointsUsed);
                 }
 
                 const response = await axios.post(
@@ -223,7 +218,7 @@ async function bundlesCommand(sock, sender, text, userStates) {
                     const reference = response.data.reference;
                     if (reference) {
                         userStates[sender].isPolling = true;
-                        userStates[sender].paymentPhone = normalizedPhone; // Store normalized phone
+                        userStates[sender].paymentPhone = normalizedPhone;
                         await pollTransactionStatus(sock, sender, reference, userStates[sender], item);
                     } else {
                         console.error(`No reference in STK response: ${JSON.stringify(response.data)}`);
@@ -232,7 +227,6 @@ async function bundlesCommand(sock, sender, text, userStates) {
                 } else {
                     await sendMessage(sock, sender, '⚠️ Failed to initiate STK Push. Try again or contact support.');
                     console.error(`STK Push failed: ${JSON.stringify(response.data)}`);
-                    // Revert points if payment initiation fails
                     if (pointsUsed > 0) {
                         console.log(`Refunding ${pointsUsed} points for ${sender} due to STK failure`);
                         await updateUserPoints(sender, pointsUsed);
@@ -246,7 +240,6 @@ async function bundlesCommand(sock, sender, text, userStates) {
                     errorMessage = '⚠️ Payment failed due to insufficient system balance. Try again later or contact support.';
                 }
                 await sendMessage(sock, sender, errorMessage);
-                // Revert points if error occurs
                 if (pointsUsed > 0) {
                     console.log(`Refunding ${pointsUsed} points for ${sender} due to STK error`);
                     await updateUserPoints(sender, pointsUsed);
@@ -261,7 +254,7 @@ async function bundlesCommand(sock, sender, text, userStates) {
 }
 
 async function pollTransactionStatus(sock, sender, reference, userState, item) {
-    const maxAttempts = 24; // 2 minutes
+    const maxAttempts = 24;
     let attempts = 0;
 
     return new Promise((resolve) => {
@@ -290,21 +283,21 @@ async function pollTransactionStatus(sock, sender, reference, userState, item) {
                 console.log(`Transaction status for ${reference}: ${JSON.stringify(statusData)}`);
 
                 if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED') {
-                    clearInterval(interval); // Stop polling immediately
+                    clearInterval(interval);
                     const transactionId = statusData.transaction_id || statusData.checkout_request_id || statusData.provider_reference || reference;
                     const pointsUsed = userState.pointsUsed || 0;
                     const finalPrice = item.price - pointsUsed;
 
                     // Record purchase for daily limit
                     try {
-                        await recordPurchase(userState.paymentPhone);
-                        console.log(`Purchase recorded for ${userState.paymentPhone}`);
+                        await recordPurchase(userState.paymentPhone, userState.type);
+                        console.log(`Purchase recorded for ${userState.paymentPhone} on ${userState.type}`);
                     } catch (error) {
                         console.error(`Failed to record purchase for ${userState.paymentPhone}:`, error);
                         await sendMessage(sock, sender, '⚠️ Purchase confirmed, but purchase tracking failed. Contact support.');
                     }
 
-                    // Award points: 5% of final price paid (excluding points used)
+                    // Award points
                     const pointsEarned = Math.floor(finalPrice * 0.05);
                     console.log(`Calculated ${pointsEarned} points for ${sender} (finalPrice: ${finalPrice})`);
                     let updatedPoints;
@@ -319,7 +312,7 @@ async function pollTransactionStatus(sock, sender, reference, userState, item) {
                     } catch (error) {
                         console.error(`Failed to award points for ${sender}:`, error);
                         await sendMessage(sock, sender, '⚠️ Purchase confirmed, but points update failed. Contact support.');
-                        updatedPoints = await getUserPoints(sender); // Fallback
+                        updatedPoints = await getUserPoints(sender);
                     }
 
                     // Notify user
@@ -328,7 +321,7 @@ async function pollTransactionStatus(sock, sender, reference, userState, item) {
                     await sendMessage(sock, sender, userMessage);
 
                     // Send to admin
-                    const adminMessage = `🔔 *New Purchase Confirmed*\n\nOffer: ${item.name}\nOriginal Cost: KSh ${item.price}\nPoints Used: ${pointsUsed}\nAmount Paid: KSh ${finalPrice}\nPhone Number: ${userState.paymentPhone}\nPoints Awarded: ${pointsEarned}\nTotal Points: ${updatedPoints}`;
+                    const adminMessage = `🔔 *New Purchase Confirmed*\n\nOffer: ${item.name}\nService: ${userState.type.replace('Offers', '')}\nOriginal Cost: KSh ${item.price}\nPoints Used: ${pointsUsed}\nAmount Paid: KSh ${finalPrice}\nPhone Number: ${userState.paymentPhone}\nPoints Awarded: ${pointsEarned}\nTotal Points: ${updatedPoints}`;
                     try {
                         await sock.sendMessage(adminNumber, { text: adminMessage });
                         console.log(`Successfully sent purchase details to ${adminNumber}`);
@@ -338,14 +331,12 @@ async function pollTransactionStatus(sock, sender, reference, userState, item) {
                     }
 
                     // Log purchase
-                    await logPurchase(userState.paymentPhone, item, pointsUsed, finalPrice);
+                    await logPurchase(userState.paymentPhone, item, pointsUsed, finalPrice, userState.type);
                     resolve();
                     return;
                 } else if (statusData.status === 'FAILED' || statusData.status === 'CANCELLED') {
                     clearInterval(interval);
                     await sendMessage(sock, sender, `⚠️ Payment failed. Transaction ID: ${reference}. Please retry or contact support.`);
-                    // Revert points if used
-                    const pointsUsed = userState.pointsUsed || 0;
                     if (pointsUsed > 0) {
                         console.log(`Refunding ${pointsUsed} points for ${sender} due to payment failure`);
                         await updateUserPoints(sender, pointsUsed);
@@ -366,16 +357,25 @@ async function pollTransactionStatus(sock, sender, reference, userState, item) {
     });
 }
 
-async function logPurchase(phone, item, pointsUsed = 0, finalPrice) {
+async function logPurchase(phone, item, pointsUsed = 0, finalPrice, serviceType) {
     const timestamp = new Date().toISOString();
-    const logEntry = { phone, offer: item.name, originalPrice: item.price, pointsUsed, finalPrice, timestamp, status: 'pending' };
+    const logEntry = { 
+        phone, 
+        offer: item.name, 
+        serviceType: serviceType.replace('Offers', '').toLowerCase(), 
+        originalPrice: item.price, 
+        pointsUsed, 
+        finalPrice, 
+        timestamp, 
+        status: 'pending' 
+    };
     try {
         const logFile = path.join(__dirname, '../data/purchases.json');
         const logs = await fs.readFile(logFile, 'utf8').catch(() => '[]');
         const purchases = JSON.parse(logs);
         purchases.push(logEntry);
         await fs.writeFile(logFile, JSON.stringify(purchases, null, 2));
-        console.log(`Logged purchase: Send ${item.name} (KSh ${item.price}) to ${phone}`);
+        console.log(`Logged purchase: Send ${item.name} (${serviceType}) to ${phone}`);
     } catch (error) {
         console.error(`Failed to log purchase for ${phone}:`, error);
     }
