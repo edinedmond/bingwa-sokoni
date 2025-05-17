@@ -51,7 +51,7 @@ async function updateUserPoints(sender, pointsToAdd) {
         let currentPoints = 0;
         if (userDoc.exists) currentPoints = userDoc.data().points || 0;
         else await userRef.set({ points: 0 });
-        const newPoints = Math.max(0, currentPoints + pointsToAdd); // Prevent negative points
+        const newPoints = Math.max(0, currentPoints + pointsToAdd);
         await userRef.update({ points: newPoints });
         console.log(`Updated points for ${sender}: ${newPoints} (changed by ${pointsToAdd})`);
         return newPoints;
@@ -61,54 +61,63 @@ async function updateUserPoints(sender, pointsToAdd) {
     }
 }
 
-async function canMakePurchase(phoneNumber) {
+async function canMakePurchase(phoneNumber, serviceType) {
     try {
-        const purchaseDoc = await purchasesCollection.doc(phoneNumber).get();
-        const currentDate = new Date();
-        const today = currentDate.toISOString().split('T')[0]; // e.g., "2025-05-17"
+        const today = new Date().toISOString().split('T')[0];
+        const serviceCollection = {
+            dataOffers: 'data',
+            smsOffers: 'sms',
+            talktimeOffers: 'talktime'
+        }[serviceType];
 
-        if (!purchaseDoc.exists) {
-            console.log(`No purchase history for ${phoneNumber}, allowing purchase`);
-            return true;
+        if (!serviceCollection) {
+            throw new Error(`Invalid service type: ${serviceType}`);
         }
 
-        const { lastPurchaseDate, resetDate } = purchaseDoc.data();
-        const lastPurchase = lastPurchaseDate.toDate();
-        const lastPurchaseDateStr = lastPurchase.toISOString().split('T')[0];
+        const purchaseRef = purchasesCollection
+            .doc(phoneNumber)
+            .collection(serviceCollection)
+            .doc(today);
 
-        if (today >= resetDate) {
-            console.log(`Resetting purchase limit for ${phoneNumber}, last reset: ${resetDate}`);
-            await purchasesCollection.doc(phoneNumber).delete();
-            return true;
-        }
-
-        if (lastPurchaseDateStr === today) {
-            console.log(`Purchase blocked for ${phoneNumber}: Already purchased today`);
+        const purchaseDoc = await purchaseRef.get();
+        if (purchaseDoc.exists) {
+            console.log(`Purchase blocked for ${phoneNumber} on ${serviceType}: Already purchased today`);
             return false;
         }
 
-        console.log(`Allowing purchase for ${phoneNumber}, last purchase: ${lastPurchaseDateStr}`);
+        console.log(`Allowing purchase for ${phoneNumber} on ${serviceType}`);
         return true;
     } catch (error) {
-        console.error(`Failed to check purchase eligibility for ${phoneNumber}:`, error);
+        console.error(`Failed to check purchase eligibility for ${phoneNumber} on ${serviceType}:`, error);
         return false;
     }
 }
 
-async function recordPurchase(phoneNumber) {
+async function recordPurchase(phoneNumber, serviceType) {
     try {
-        const currentDate = new Date();
-        const tomorrow = new Date(currentDate);
-        tomorrow.setDate(currentDate.getDate() + 1);
-        const resetDate = tomorrow.toISOString().split('T')[0]; // e.g., "2025-05-18"
+        const today = new Date().toISOString().split('T')[0];
+        const serviceCollection = {
+            dataOffers: 'data',
+            smsOffers: 'sms',
+            talktimeOffers: 'talktime'
+        }[serviceType];
 
-        await purchasesCollection.doc(phoneNumber).set({
-            lastPurchaseDate: admin.firestore.Timestamp.fromDate(currentDate),
-            resetDate: resetDate
+        if (!serviceCollection) {
+            throw new Error(`Invalid service type: ${serviceType}`);
+        }
+
+        const purchaseRef = purchasesCollection
+            .doc(phoneNumber)
+            .collection(serviceCollection)
+            .doc(today);
+
+        await purchaseRef.set({
+            lastPurchaseDate: admin.firestore.Timestamp.now(),
+            resetDate: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000))
         });
-        console.log(`Recorded purchase for ${phoneNumber}, resets on ${resetDate}`);
+        console.log(`Recorded purchase for ${phoneNumber} on ${serviceType}, resets tomorrow`);
     } catch (error) {
-        console.error(`Failed to record purchase for ${phoneNumber}:`, error);
+        console.error(`Failed to record purchase for ${phoneNumber} on ${serviceType}:`, error);
         throw error;
     }
 }
