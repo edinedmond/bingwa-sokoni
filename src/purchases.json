@@ -1,0 +1,29 @@
+[
+  {
+    "phone": "0707679247",
+    "offer": "250MB (24hrs)",
+    "originalPrice": 1,
+    "pointsUsed": 0,
+    "finalPrice": 1,
+    "timestamp": "2025-05-17T10:39:13.321Z",
+    "status": "pending"
+  },
+  {
+    "phone": "0707071631",
+    "offer": "1GB (1hr)",
+    "originalPrice": 19,
+    "pointsUsed": 0,
+    "finalPrice": 19,
+    "timestamp": "2025-05-17T10:43:16.271Z",
+    "status": "pending"
+  },
+  {
+    "phone": "0707071631",
+    "offer": "20 Daily SMS",
+    "originalPrice": 5,
+    "pointsUsed": 0,
+    "finalPrice": 5,
+    "timestamp": "2025-05-17T10:55:56.837Z",
+    "status": "pending"
+  }
+]
