@@ -18,6 +18,7 @@
     "express": "^5.1.0",
     "firebase": "^11.7.3",
     "firebase-admin": "^13.4.0",
+    "mime-types": "^2.1.35",
     "nodemon": "^3.1.9",
     "pino": "^9.6.0",
     "qrcode-terminal": "^0.12.0"
